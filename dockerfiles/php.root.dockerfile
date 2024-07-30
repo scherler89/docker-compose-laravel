@@ -1,4 +1,4 @@
-FROM php:8-fpm-alpine
+FROM php:8.2-fpm-alpine
 
 RUN mkdir -p /var/www/html
 
@@ -18,5 +18,23 @@ RUN mkdir -p /usr/src/php/ext/redis \
     && docker-php-ext-install redis
     
 USER root
+
+# install dependencies incl linux header
+RUN apk add --no-cache autoconf dpkg-dev dpkg file g++ gcc libc-dev make pkgconf re2c linux-headers
+
+# install xdebug
+RUN set -eux; \
+        apk add --no-cache --virtual .build-deps $PHPIZE_DEPS; \
+        curl -fsSL -o /tmp/xdebug.tgz "https://xdebug.org/files/xdebug-3.2.0.tgz"; \
+        mkdir -p /tmp/xdebug; \
+        tar xvzf /tmp/xdebug.tgz -C /tmp/xdebug --strip-components=1; \
+        docker-php-ext-install /tmp/xdebug; \
+        rm -rf /tmp/*; \
+        apk del --no-network .build-deps;
+
+RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/xdebug.ini && \
+    echo "xdebug.start_with_request=trigger" >> /usr/local/etc/php/conf.d/xdebug.ini && \
+    echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/xdebug.ini && \
+    echo "xdebug.client_port=9003" >> /usr/local/etc/php/conf.d/xdebug.ini
 
 CMD ["php-fpm", "-y", "/usr/local/etc/php-fpm.conf", "-R"]
